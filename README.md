@@ -3,4 +3,4 @@
 (**E**xperimental **M**ultithreaded **M**inecraft **S**erver)
 
 
-This repository implements a server capable of hosting a [Minecraft](https://minecraft.net) server (with \[Neo]Forge support) and playing on it with a client.
+This repository implements a server capable of hosting a [Minecraft](https://minecraft.net) server (with \[[Neo](https://neoforged.net/)][Forge](https://files.minecraftforge.net/net/minecraftforge/forge/) support) and playing on it with a client.
