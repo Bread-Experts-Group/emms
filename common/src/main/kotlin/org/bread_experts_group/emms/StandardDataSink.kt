@@ -16,6 +16,21 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-fun main() {
-	println("OK")
+package org.bread_experts_group.emms
+
+interface StandardDataSink {
+	fun boolean(b: Boolean)
+	fun byte(b: Byte)
+	fun unsignedByte(ub: UByte) = byte(ub.toByte())
+	fun short(s: Short)
+	fun unsignedShort(us: UShort) = short(us.toShort())
+	fun int(i: Int)
+	fun long(l: Long)
+	fun float(f: Float)
+	fun double(d: Double)
+
+	fun varInt(i: Int)
+	fun varLong(l: Long)
+
+	fun flush()
 }

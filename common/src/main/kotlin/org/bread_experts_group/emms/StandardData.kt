@@ -16,6 +16,6 @@
  *     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-fun main() {
-	println("OK")
-}
+package org.bread_experts_group.emms
+
+interface StandardData : StandardDataSource, StandardDataSink
