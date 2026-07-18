@@ -36,5 +36,7 @@ interface StandardDataSource {
 	fun varInt(): Int
 	fun varLong(): Long
 
+	fun string(maximum: Int): String
+
 	fun skip(count: Int)
 }

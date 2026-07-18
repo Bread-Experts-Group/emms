@@ -89,6 +89,10 @@ class SocketChannelData(private val channel: SocketChannel) : StandardData {
 
 	override fun varInt(i: Int) {
 		if (!tx.hasRemaining()) flush()
+		if (i == 0) {
+			tx.put(0)
+			return
+		}
 		var n = i
 		while (n != 0) {
 			var b = n and 0b0_1111111
@@ -110,6 +114,10 @@ class SocketChannelData(private val channel: SocketChannel) : StandardData {
 
 	override fun varLong(l: Long) {
 		if (!tx.hasRemaining()) flush()
+		if (l == 0L) {
+			tx.put(0)
+			return
+		}
 		var n = l
 		while (n != 0L) {
 			var b = n and 0b0_1111111
@@ -117,6 +125,26 @@ class SocketChannelData(private val channel: SocketChannel) : StandardData {
 			if (n > 0) b = b or 0b1_0000000
 			tx.put(b.toByte())
 		}
+	}
+
+	override fun string(maximum: Int, s: String) {
+		if (s.length > maximum) throw IOException("String length exceeded maximum transmission size (${s.length} > ${maximum})")
+		varInt(s.length)
+		if (!tx.hasRemaining()) flush()
+		tx.put(s.toByteArray(Charsets.UTF_8))
+	}
+
+	override fun string(maximum: Int): String {
+		val length = varInt()
+		if (length > maximum) throw IOException("String length exceeded maximum receive size ($length > $maximum)")
+		val data = ByteArray(length)
+		buffer(length).get(data)
+		return data.toString(Charsets.UTF_8)
+	}
+
+	override fun bytes(a: ByteArray) {
+		if (!tx.hasRemaining()) flush()
+		tx.put(a)
 	}
 
 	override fun skip(count: Int) {

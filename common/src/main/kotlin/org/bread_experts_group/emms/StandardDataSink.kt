@@ -32,5 +32,8 @@ interface StandardDataSink {
 	fun varInt(i: Int)
 	fun varLong(l: Long)
 
+	fun string(maximum: Int, s: String)
+	fun bytes(a: ByteArray)
+
 	fun flush()
 }
