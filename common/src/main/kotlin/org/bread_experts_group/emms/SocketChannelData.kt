@@ -21,16 +21,45 @@ package org.bread_experts_group.emms
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
+import javax.crypto.Cipher
 
-class SocketChannelData(private val channel: SocketChannel) : StandardData {
+class SocketChannelData(private val channel: SocketChannel) : StandardDataEncryptable {
 	private val rx = ByteBuffer.allocateDirect(1024).limit(0)
 	private val tx = ByteBuffer.allocateDirect(1024).limit(0)
 
+	private var rxCipher: Cipher? = null
+	private var txCipher: Cipher? = null
+
+	private val rxCipherBuffer = ByteBuffer.allocate(1024)
+	private val txCipherBuffer = ByteBuffer.allocate(1024)
+
+	override fun receiveEncryption(cipher: Cipher?) {
+		rxCipher = cipher
+		if (cipher != null) {
+			rxCipherBuffer.clear().put(rx).flip()
+			cipher.update(rxCipherBuffer, rx.clear())
+			rx.flip()
+		}
+	}
+
+	override fun transmitEncryption(cipher: Cipher?) {
+		txCipher = cipher
+	}
+
 	override fun buffer(count: Int): ByteBuffer {
 		rx.compact()
-		while (rx.position() < count) {
-			val read = channel.read(rx)
-			if (read == -1) throw IOException("Socket data stream ended.")
+		val rxCipher = rxCipher
+		if (rxCipher != null) {
+			while (rx.position() < count) {
+				val read = channel.read(rxCipherBuffer.clear())
+				if (read == -1) throw IOException("Socket data stream ended.")
+				rxCipher.update(rxCipherBuffer.flip(), rx)
+			}
+		} else {
+			while (rx.position() < count) {
+				val read = channel.read(rx)
+				if (read == -1) throw IOException("Socket data stream ended.")
+			}
 		}
 		return rx.flip()
 	}
@@ -77,74 +106,15 @@ class SocketChannelData(private val channel: SocketChannel) : StandardData {
 		tx.putDouble(d)
 	}
 
-	override fun varInt(): Int {
-		var n = 0
-		for (bit in 0..<32 step 7) {
-			val byte = buffer(1).get().toInt() and 0xFF
-			n = n or ((byte and 0b0_1111111) shl bit)
-			if (byte ushr 7 == 0) return n
-		}
-		throw IOException("VarInt exceeded maximum range.")
-	}
-
-	override fun varInt(i: Int) {
-		if (!tx.hasRemaining()) flush()
-		if (i == 0) {
-			tx.put(0)
-			return
-		}
-		var n = i
-		while (n != 0) {
-			var b = n and 0b0_1111111
-			n = n ushr 7
-			if (n > 0) b = b or 0b1_0000000
-			tx.put(b.toByte())
-		}
-	}
-
-	override fun varLong(): Long {
-		var n = 0L
-		for (bit in 0..<64 step 7) {
-			val byte = buffer(1).get().toLong() and 0xFF
-			n = n or ((byte and 0b0_1111111) shl bit)
-			if (byte ushr 7 == 0L) return n
-		}
-		throw IOException("VarLong exceeded maximum range.")
-	}
-
-	override fun varLong(l: Long) {
-		if (!tx.hasRemaining()) flush()
-		if (l == 0L) {
-			tx.put(0)
-			return
-		}
-		var n = l
-		while (n != 0L) {
-			var b = n and 0b0_1111111
-			n = n ushr 7
-			if (n > 0) b = b or 0b1_0000000
-			tx.put(b.toByte())
-		}
-	}
-
-	override fun string(maximum: Int, s: String) {
-		if (s.length > maximum) throw IOException("String length exceeded maximum transmission size (${s.length} > ${maximum})")
-		varInt(s.length)
-		if (!tx.hasRemaining()) flush()
-		tx.put(s.toByteArray(Charsets.UTF_8))
-	}
-
-	override fun string(maximum: Int): String {
-		val length = varInt()
-		if (length > maximum) throw IOException("String length exceeded maximum receive size ($length > $maximum)")
-		val data = ByteArray(length)
-		buffer(length).get(data)
-		return data.toString(Charsets.UTF_8)
-	}
-
 	override fun bytes(a: ByteArray) {
 		if (!tx.hasRemaining()) flush()
 		tx.put(a)
+	}
+
+	override fun bytes(count: Int): ByteArray {
+		val data = ByteArray(count)
+		buffer(count).get(data)
+		return data
 	}
 
 	override fun skip(count: Int) {
@@ -152,7 +122,11 @@ class SocketChannelData(private val channel: SocketChannel) : StandardData {
 	}
 
 	override fun flush() {
-		this.channel.write(tx.flip())
+		val txCipher = txCipher
+		if (txCipher != null) {
+			txCipher.update(tx.flip(), txCipherBuffer.clear())
+			this.channel.write(txCipherBuffer.flip())
+		} else this.channel.write(tx.flip())
 		tx.clear()
 	}
 }

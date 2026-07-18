@@ -18,6 +18,9 @@
 
 package org.bread_experts_group.emms
 
+import java.io.IOException
+import kotlin.uuid.Uuid
+
 interface StandardDataSink {
 	fun boolean(b: Boolean)
 	fun byte(b: Byte)
@@ -29,11 +32,48 @@ interface StandardDataSink {
 	fun float(f: Float)
 	fun double(d: Double)
 
-	fun varInt(i: Int)
-	fun varLong(l: Long)
+	fun varInt(i: Int) {
+		if (i == 0) {
+			byte(0)
+			return
+		}
+		var n = i
+		while (n != 0) {
+			var b = n and 0b0_1111111
+			n = n ushr 7
+			if (n > 0) b = b or 0b1_0000000
+			byte(b.toByte())
+		}
+	}
 
-	fun string(maximum: Int, s: String)
+	fun varLong(l: Long) {
+		if (l == 0L) {
+			byte(0)
+			return
+		}
+		var n = l
+		while (n != 0L) {
+			var b = n and 0b0_1111111
+			n = n ushr 7
+			if (n > 0) b = b or 0b1_0000000
+			byte(b.toByte())
+		}
+	}
+
 	fun bytes(a: ByteArray)
+
+	fun string(maximum: Int, s: String) {
+		if (s.length > maximum) throw IOException("String length exceeded maximum transmission size (${s.length} > ${maximum})")
+		varInt(s.length)
+		bytes(s.toByteArray(Charsets.UTF_8))
+	}
+
+	fun uuid(uuid: Uuid) {
+		uuid.toLongs { mostSignificantBits, leastSignificantBits ->
+			long(mostSignificantBits)
+			long(leastSignificantBits)
+		}
+	}
 
 	fun flush()
 }

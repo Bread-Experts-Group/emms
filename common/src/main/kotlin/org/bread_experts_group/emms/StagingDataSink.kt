@@ -18,17 +18,16 @@
 
 package org.bread_experts_group.emms
 
-import java.io.IOException
 import java.nio.ByteBuffer
 
 class StagingDataSink : StandardDataSink {
 	private val buffer = ByteBuffer.allocate(1024)
 	override fun boolean(b: Boolean) {
-		TODO("Not yet implemented")
+		buffer.put(if (b) 1 else 0)
 	}
 
 	override fun byte(b: Byte) {
-		TODO("Not yet implemented")
+		buffer.put(b)
 	}
 
 	override fun short(s: Short) {
@@ -51,32 +50,8 @@ class StagingDataSink : StandardDataSink {
 		TODO("Not yet implemented")
 	}
 
-	override fun varInt(i: Int) {
-		if (i == 0) {
-			buffer.put(0)
-			return
-		}
-		var n = i
-		while (n != 0) {
-			var b = n and 0b0_1111111
-			n = n ushr 7
-			if (n > 0) b = b or 0b1_0000000
-			buffer.put(b.toByte())
-		}
-	}
-
-	override fun varLong(l: Long) {
-		TODO("Not yet implemented")
-	}
-
-	override fun string(maximum: Int, s: String) {
-		if (s.length > maximum) throw IOException("String length exceeded maximum transmission size (${s.length} > ${maximum})")
-		varInt(s.length)
-		buffer.put(s.toByteArray(Charsets.UTF_8))
-	}
-
 	override fun bytes(a: ByteArray) {
-		TODO("Not yet implemented")
+		buffer.put(a)
 	}
 
 	override fun flush() {

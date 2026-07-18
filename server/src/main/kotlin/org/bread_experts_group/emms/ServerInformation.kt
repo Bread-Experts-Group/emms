@@ -18,26 +18,10 @@
 
 package org.bread_experts_group.emms
 
-import java.net.InetSocketAddress
-import java.nio.channels.ServerSocketChannel
-import java.security.KeyPairGenerator
+import java.security.PublicKey
 import javax.crypto.Cipher
 
-fun main() {
-	val rsaGenerator = KeyPairGenerator.getInstance("RSA")
-	rsaGenerator.initialize(1024)
-	val keyPair = rsaGenerator.generateKeyPair()
-
-	val serverCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
-	serverCipher.init(Cipher.DECRYPT_MODE, keyPair.private)
-
-	val serverInfo = ServerInformation(keyPair.public, serverCipher)
-
-	val server = ServerSocketChannel.open()
-//	server.setOption(StandardSocketOptions.TCP_NODELAY, true)
-	server.bind(InetSocketAddress(25565))
-	while (true) {
-		val client = server.accept()
-		Thread.ofVirtual().start(ServerClient(serverInfo, SocketChannelData(client)))
-	}
-}
+data class ServerInformation(
+	val publicKey: PublicKey,
+	val decryptCipher: Cipher
+)

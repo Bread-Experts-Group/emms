@@ -18,18 +18,40 @@
 
 package org.bread_experts_group.emms
 
-class ServerClient(private val data: StandardData) : Runnable {
+import java.io.IOException
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
+class ServerClient(
+	private val serverInfo: ServerInformation,
+	private val data: StandardDataEncryptable
+) : Runnable {
 	enum class State {
 		HANDSHAKING,
 		STATUS,
 		LOGIN,
+		CONFIGURATION,
 		TRANSFER
 	}
 
 	private var state = State.HANDSHAKING
 
+	private var internalLoginState: LogInState? = null
+		set(value) {
+			if (value == null) throw IOException("Login information cannot be cleared")
+			if (field != null) throw IOException("Login information cannot be written to more than once")
+			field = value
+		}
+
+	private val loginState: LogInState
+		get() = internalLoginState ?: throw IOException("Attempted to retrieve login information, but wasn't present")
+
+	private val secureRandom = SecureRandom()
+
 	private val stagingSink = StagingDataSink()
-	private fun writePacket(id: Int, consumer: StandardDataSink.() -> Unit) {
+	private fun transmitPacket(id: Int, consumer: StandardDataSink.() -> Unit) {
 		stagingSink.varInt(id)
 		consumer(stagingSink)
 		data.varInt(stagingSink.size())
@@ -58,19 +80,19 @@ class ServerClient(private val data: StandardData) : Runnable {
 				}
 
 				State.STATUS -> when (packetID) {
-					0x00 -> writePacket(0x00) {
+					0x00 -> transmitPacket(0x00) {
 						string(32767, "{\n" +
 								"    \"version\": {\n" +
 								"        \"name\": \"1.21.1\",\n" +
 								"        \"protocol\": 767\n" +
 								"    },\n" +
 								"    \"players\": {\n" +
-								"        \"max\": 99999999999,\n" +
+								"        \"max\": 0,\n" +
 								"        \"online\": 1,\n" +
 								"        \"sample\": [\n" +
 								"            {\n" +
-								"                \"name\": \"thinkofdeath\",\n" +
-								"                \"id\": \"4566e69f-c907-48ee-8d71-d7ba5aa00d20\"\n" +
+								"                \"name\": \"Aerasto\",\n" +
+								"                \"id\": \"45f8aaf6-629e-42f2-9e66-527d26ac9f86\"\n" +
 								"            }\n" +
 								"        ]\n" +
 								"    },\n" +
@@ -81,11 +103,80 @@ class ServerClient(private val data: StandardData) : Runnable {
 								"}")
 					}
 
-					0x01 -> writePacket(0x01) {
+					0x01 -> transmitPacket(0x01) {
 						long(data.long())
 					}
 
 					else -> data.skip(packetLength)
+				}
+
+				State.LOGIN -> when (packetID) {
+					0x00 -> {
+						val login = LogInState(data.string(16), data.uuid())
+						internalLoginState = login
+						transmitPacket(0x01) {
+							string(20, "")
+
+							val pkBytes = serverInfo.publicKey.encoded
+							varInt(pkBytes.size)
+							bytes(pkBytes)
+
+							secureRandom.nextBytes(login.verifyToken)
+							varInt(login.verifyToken.size)
+							bytes(login.verifyToken)
+
+							boolean(true)
+						}
+					}
+
+					0x01 -> {
+						val encSharedSecret = data.bytes(data.varInt())
+						val encVerifyToken = data.bytes(data.varInt())
+
+						val sharedSecret = serverInfo.decryptCipher.doFinal(encSharedSecret)
+						val verifyToken = serverInfo.decryptCipher.doFinal(encVerifyToken)
+
+						if (!verifyToken.contentEquals(loginState.verifyToken)) throw IOException(
+							"Client did not provide the correct verify token during encryption setup."
+						)
+
+						val sharedSecretKey = SecretKeySpec(sharedSecret, "AES")
+						val sharedSecretIV = IvParameterSpec(sharedSecret)
+
+						data.receiveEncryption(
+							Cipher.getInstance("AES/CFB8/NoPadding").also {
+								it.init(Cipher.DECRYPT_MODE, sharedSecretKey, sharedSecretIV)
+							}
+						)
+						data.transmitEncryption(
+							Cipher.getInstance("AES/CFB8/NoPadding").also {
+								it.init(Cipher.ENCRYPT_MODE, sharedSecretKey, sharedSecretIV)
+							}
+						)
+
+						transmitPacket(0x02) {
+							uuid(loginState.uuid)
+							string(16, loginState.username)
+							varInt(0)
+							boolean(true)
+						}
+					}
+
+					0x03 -> {
+						state = State.CONFIGURATION
+					}
+
+					else -> {
+						println("... ? $packetID : $packetLength")
+						data.skip(packetLength)
+					}
+				}
+
+				State.CONFIGURATION -> when (packetID) {
+					else -> {
+						println("... ? $packetID : $packetLength")
+						data.skip(packetLength)
+					}
 				}
 
 				else -> TODO("$state")
