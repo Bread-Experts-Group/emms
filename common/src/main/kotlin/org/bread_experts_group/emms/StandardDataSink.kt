@@ -60,13 +60,15 @@ interface StandardDataSink {
 		}
 	}
 
-	fun bytes(a: ByteArray)
+	fun bytes(a: ByteArray, maximum: Int? = null)
 
-	fun string(maximum: Int, s: String) {
-		if (s.length > maximum) throw IOException("String length exceeded maximum transmission size (${s.length} > ${maximum})")
+	fun string(s: String, maximum: Int? = null) {
+		if (maximum != null && s.length > maximum) throw IOException("String length exceeded maximum transmission size (${s.length} > ${maximum})")
 		varInt(s.length)
 		bytes(s.toByteArray(Charsets.UTF_8))
 	}
+
+	fun identifier(s: String): Unit = string(s, 32767)
 
 	fun uuid(uuid: Uuid) {
 		uuid.toLongs { mostSignificantBits, leastSignificantBits ->
@@ -74,6 +76,8 @@ interface StandardDataSink {
 			long(leastSignificantBits)
 		}
 	}
+
+	fun nbt(nbt: NBTType)
 
 	fun flush()
 }

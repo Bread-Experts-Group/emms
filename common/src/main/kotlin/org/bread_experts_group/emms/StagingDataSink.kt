@@ -18,10 +18,11 @@
 
 package org.bread_experts_group.emms
 
+import java.io.IOException
 import java.nio.ByteBuffer
 
 class StagingDataSink : StandardDataSink {
-	private val buffer = ByteBuffer.allocate(1024)
+	private val buffer = ByteBuffer.allocate(16384)
 	override fun boolean(b: Boolean) {
 		buffer.put(if (b) 1 else 0)
 	}
@@ -35,7 +36,7 @@ class StagingDataSink : StandardDataSink {
 	}
 
 	override fun int(i: Int) {
-		TODO("Not yet implemented")
+		buffer.putInt(i)
 	}
 
 	override fun long(l: Long) {
@@ -50,8 +51,56 @@ class StagingDataSink : StandardDataSink {
 		TODO("Not yet implemented")
 	}
 
-	override fun bytes(a: ByteArray) {
+	override fun bytes(a: ByteArray, maximum: Int?) {
+		if (maximum != null && a.size > maximum) throw IOException("Byte array length exceeded maximum write size (${a.size} > ${maximum})")
 		buffer.put(a)
+	}
+
+	override fun nbt(nbt: NBTType) {
+		when (nbt) {
+			is NBTType.NBTCompound -> {
+				nbt.elements.forEach { (key, type) ->
+					buffer.put(type.typeID())
+					val nameBytes = key.toByteArray(Charsets.UTF_8)
+					buffer.putShort(nameBytes.size.toShort())
+					buffer.put(nameBytes)
+					nbt(type)
+				}
+				buffer.put(0x00)
+			}
+
+			is NBTType.NBTList<*> -> {
+				buffer.put(nbt.elements.firstOrNull()?.typeID() ?: 0)
+				buffer.putInt(nbt.elements.size)
+				nbt.elements.forEach {
+					nbt(it)
+				}
+			}
+
+			is NBTType.NBTByte -> {
+				buffer.put(nbt.byte)
+			}
+
+			is NBTType.NBTInt -> {
+				buffer.putInt(nbt.int)
+			}
+
+			is NBTType.NBTFloat -> {
+				buffer.putFloat(nbt.float)
+			}
+
+			is NBTType.NBTDouble -> {
+				buffer.putDouble(nbt.double)
+			}
+
+			is NBTType.NBTString -> {
+				val nameBytes = nbt.string.toByteArray(Charsets.UTF_8)
+				buffer.putShort(nameBytes.size.toShort())
+				buffer.put(nameBytes)
+			}
+
+			else -> TODO("! $nbt")
+		}
 	}
 
 	override fun flush() {

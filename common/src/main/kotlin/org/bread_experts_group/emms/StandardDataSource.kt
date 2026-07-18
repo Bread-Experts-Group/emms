@@ -23,6 +23,9 @@ import java.nio.ByteBuffer
 import kotlin.uuid.Uuid
 
 interface StandardDataSource {
+	fun clearConsumed()
+	fun consumed(): Long
+
 	fun buffer(count: Int): ByteBuffer
 
 	fun boolean(): Boolean
@@ -35,12 +38,12 @@ interface StandardDataSource {
 	fun float(): Float
 	fun double(): Double
 
-	fun bytes(count: Int): ByteArray
+	fun bytes(count: Int, maximum: Int? = null): ByteArray
 
 	fun varInt(): Int {
 		var n = 0
 		for (bit in 0..<32 step 7) {
-			val byte = buffer(1).get().toInt() and 0xFF
+			val byte = byte().toInt() and 0xFF
 			n = n or ((byte and 0b0_1111111) shl bit)
 			if (byte ushr 7 == 0) return n
 		}
@@ -50,22 +53,18 @@ interface StandardDataSource {
 	fun varLong(): Long {
 		var n = 0L
 		for (bit in 0..<64 step 7) {
-			val byte = buffer(1).get().toLong() and 0xFF
+			val byte = byte().toLong() and 0xFF
 			n = n or ((byte and 0b0_1111111) shl bit)
 			if (byte ushr 7 == 0L) return n
 		}
 		throw IOException("VarLong exceeded maximum range.")
 	}
 
-	fun string(maximum: Int): String {
-		val length = varInt()
-		if (length > maximum) throw IOException("String length exceeded maximum receive size ($length > $maximum)")
-		val data = ByteArray(length)
-		buffer(length).get(data)
-		return data.toString(Charsets.UTF_8)
-	}
+	fun string(maximum: Int? = null): String = bytes(varInt(), maximum).toString(Charsets.UTF_8)
 
-	fun uuid() = Uuid.fromLongs(long(), long())
+	fun identifier(): String = string(32767)
+
+	fun uuid(): Uuid = Uuid.fromLongs(long(), long())
 
 	fun skip(count: Int)
 }

@@ -18,6 +18,7 @@
 
 package org.bread_experts_group.emms
 
+import java.util.*
 import kotlin.uuid.Uuid
 
 class LogInState(
@@ -25,4 +26,33 @@ class LogInState(
 	val uuid: Uuid,
 
 	var verifyToken: ByteArray = ByteArray(4)
-)
+) {
+	enum class ChatMode {
+		ENABLED,
+		COMMANDS_ONLY,
+		HIDDEN
+	}
+
+	enum class SkinParts {
+		CAPE,
+		JACKET,
+		LEFT_SLEEVE,
+		RIGHT_SLEEVE,
+		LEFT_PANTS,
+		RIGHT_PANTS,
+		HAT
+	}
+
+	enum class MainHand {
+		LEFT, RIGHT
+	}
+
+	lateinit var locale: String
+	var viewDistance: Int = -1
+	lateinit var chatMode: ChatMode
+	var chatColors: Boolean = false
+	val displayedSkinParts: EnumSet<SkinParts> = EnumSet.noneOf(SkinParts::class.java)
+	lateinit var mainHand: MainHand
+	var textFiltering: Boolean = false
+	var serverListingOnStatus: Boolean = false
+}

@@ -23,6 +23,9 @@ import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlin.io.path.Path
+import kotlin.io.path.name
+import kotlin.io.path.walk
 
 class ServerClient(
 	private val serverInfo: ServerInformation,
@@ -33,6 +36,7 @@ class ServerClient(
 		STATUS,
 		LOGIN,
 		CONFIGURATION,
+		PLAY,
 		TRANSFER
 	}
 
@@ -62,6 +66,7 @@ class ServerClient(
 	override fun run() {
 		while (true) {
 			val packetLength = data.varInt()
+			data.clearConsumed()
 			val packetID = data.varInt()
 			when (state) {
 				State.HANDSHAKING -> {
@@ -81,7 +86,8 @@ class ServerClient(
 
 				State.STATUS -> when (packetID) {
 					0x00 -> transmitPacket(0x00) {
-						string(32767, "{\n" +
+						string(
+							"{\n" +
 								"    \"version\": {\n" +
 								"        \"name\": \"1.21.1\",\n" +
 								"        \"protocol\": 767\n" +
@@ -100,7 +106,8 @@ class ServerClient(
 								"        \"text\": \"Hello, world!\"\n" +
 								"    },\n" +
 								"    \"enforcesSecureChat\": false\n" +
-								"}")
+									"}", 32767
+						)
 					}
 
 					0x01 -> transmitPacket(0x01) {
@@ -115,7 +122,7 @@ class ServerClient(
 						val login = LogInState(data.string(16), data.uuid())
 						internalLoginState = login
 						transmitPacket(0x01) {
-							string(20, "")
+							string("", 20)
 
 							val pkBytes = serverInfo.publicKey.encoded
 							varInt(pkBytes.size)
@@ -156,7 +163,7 @@ class ServerClient(
 
 						transmitPacket(0x02) {
 							uuid(loginState.uuid)
-							string(16, loginState.username)
+							string(loginState.username, 16)
 							varInt(0)
 							boolean(true)
 						}
@@ -167,14 +174,207 @@ class ServerClient(
 					}
 
 					else -> {
-						println("... ? $packetID : $packetLength")
+						println("login ... ? $packetID : $packetLength")
 						data.skip(packetLength)
 					}
 				}
 
 				State.CONFIGURATION -> when (packetID) {
+					0x00 -> {
+						loginState.locale = data.string(16)
+						loginState.viewDistance = data.byte().toInt() and 0xFF
+						loginState.chatMode = LogInState.ChatMode.entries[data.varInt()]
+						loginState.chatColors = data.boolean()
+
+						loginState.displayedSkinParts.clear()
+						val skinPartsBits = data.unsignedByte().toUInt()
+						if (skinPartsBits and 0x01u != 0u) loginState.displayedSkinParts.add(LogInState.SkinParts.CAPE)
+						if (skinPartsBits and 0x02u != 0u) loginState.displayedSkinParts.add(LogInState.SkinParts.JACKET)
+						if (skinPartsBits and 0x04u != 0u) loginState.displayedSkinParts.add(LogInState.SkinParts.LEFT_SLEEVE)
+						if (skinPartsBits and 0x08u != 0u) loginState.displayedSkinParts.add(LogInState.SkinParts.RIGHT_SLEEVE)
+						if (skinPartsBits and 0x10u != 0u) loginState.displayedSkinParts.add(LogInState.SkinParts.LEFT_PANTS)
+						if (skinPartsBits and 0x20u != 0u) loginState.displayedSkinParts.add(LogInState.SkinParts.RIGHT_PANTS)
+						if (skinPartsBits and 0x40u != 0u) loginState.displayedSkinParts.add(LogInState.SkinParts.HAT)
+
+						loginState.mainHand = LogInState.MainHand.entries[data.varInt()]
+						loginState.textFiltering = data.boolean()
+						loginState.serverListingOnStatus = data.boolean()
+
+						transmitPacket(0x0E) {
+							varInt(1)
+							string("minecraft")
+							string("core")
+							string("1.21")
+						}
+					}
+
+					0x02 -> {
+						val channel = data.identifier()
+						val pluginData = data.bytes(packetLength - data.consumed().toInt(), 32767)
+						println("$channel: ${pluginData.toHexString()}")
+					}
+
+					0x03 -> {
+						state = State.PLAY
+						transmitPacket(0x2B) {
+							int(0)
+							boolean(false)
+							varInt(1)
+							identifier("minecraft:overworld")
+							varInt(20)
+							varInt(32)
+							varInt(32)
+							boolean(false)
+							boolean(false)
+							boolean(false)
+							varInt(0)
+							identifier("minecraft:overworld")
+							long(0)
+							unsignedByte(0u) // GAME MODE
+							byte(-1) // PREVIOUS GAME MODE
+							boolean(false)
+							boolean(false)
+							boolean(false) // DEATH LOCATION
+							varInt(20)
+							boolean(false)
+						}
+					}
+
+					0x07 -> {
+						repeat(data.varInt().also { println("$it packs") }) {
+							println("${data.string()} ${data.string()} ${data.string()}")
+						}
+
+						transmitPacket(0x07) {
+							identifier("minecraft:dimension_type")
+							val dimensionType = Path("server/src/main/resources/data/minecraft/wolf_variant").walk()
+								.map { it.name.removeSuffix(".json") }.toList()
+							varInt(dimensionType.size)
+							dimensionType.forEach {
+								identifier("minecraft:$it")
+								boolean(true)
+								byte(0x0A)
+								nbt(
+									NBTType.NBTCompound(
+										"has_skylight" to NBTType.NBTByte(1),
+										"has_ceiling" to NBTType.NBTByte(0),
+										"ultrawarm" to NBTType.NBTByte(0),
+										"natural" to NBTType.NBTByte(1),
+										"coordinate_scale" to NBTType.NBTDouble(1.0),
+										"bed_works" to NBTType.NBTByte(1),
+										"respawn_anchor_works" to NBTType.NBTByte(1),
+										"min_y" to NBTType.NBTInt(-64),
+										"height" to NBTType.NBTInt(384),
+										"logical_height" to NBTType.NBTInt(384),
+										"infiniburn" to NBTType.NBTString("#"),
+										"effects" to NBTType.NBTString("minecraft:overworld"),
+										"ambient_light" to NBTType.NBTFloat(0f),
+										"piglin_safe" to NBTType.NBTByte(0),
+										"has_raids" to NBTType.NBTByte(1),
+										"monster_spawn_light_level" to NBTType.NBTByte(0),
+										"monster_spawn_block_light_limit" to NBTType.NBTByte(0),
+									)
+								)
+							}
+						}
+
+						transmitPacket(0x07) {
+							identifier("minecraft:wolf_variant")
+							val wolfVariant = Path("server/src/main/resources/data/minecraft/wolf_variant").walk()
+								.map { it.name.removeSuffix(".json") }.toList()
+							varInt(wolfVariant.size)
+							wolfVariant.forEach {
+								identifier("minecraft:$it")
+								boolean(true)
+								byte(0x0A)
+								nbt(
+									NBTType.NBTCompound(
+										"wild_texture" to NBTType.NBTString("minecraft:entity/wolf/wolf_ashen"),
+										"tame_texture" to NBTType.NBTString("minecraft:entity/wolf/wolf_ashen_tame"),
+										"angry_texture" to NBTType.NBTString("minecraft:entity/wolf/wolf_ashen_angry"),
+										"biomes" to NBTType.NBTList(emptyList<NBTType.NBTString>()),
+									)
+								)
+							}
+						}
+
+						transmitPacket(0x07) {
+							identifier("minecraft:painting_variant")
+							val paintingVariant = Path("server/src/main/resources/data/minecraft/painting_variant").walk()
+								.map { it.name.removeSuffix(".json") }.toList()
+							varInt(paintingVariant.size)
+							paintingVariant.forEach {
+								identifier("minecraft:$it")
+								boolean(true)
+								byte(0x0A)
+								nbt(
+									NBTType.NBTCompound(
+										"asset_id" to NBTType.NBTString("minecraft:alban"),
+										"height" to NBTType.NBTInt(1),
+										"width" to NBTType.NBTInt(1)
+									)
+								)
+							}
+						}
+
+						transmitPacket(0x07) {
+							identifier("minecraft:damage_type")
+							val damageTypes = Path("server/src/main/resources/data/minecraft/damage_type").walk()
+								.map { it.name.removeSuffix(".json") }.toList()
+							varInt(damageTypes.size)
+							damageTypes.forEach {
+								identifier("minecraft:$it")
+								boolean(true)
+								byte(0x0A)
+								nbt(
+									NBTType.NBTCompound(
+										"message_id" to NBTType.NBTString("inFire"),
+										"scaling" to NBTType.NBTString("when_caused_by_living_non_player"),
+										"exhaustion" to NBTType.NBTFloat(0.1f),
+										"effects" to NBTType.NBTString("burning")
+									)
+								)
+							}
+						}
+
+						transmitPacket(0x07) {
+							identifier("minecraft:worldgen/biome")
+							val biomes = Path("server/src/main/resources/data/minecraft/worldgen/biome").walk()
+								.map { it.name.removeSuffix(".json") }.toList()
+							varInt(biomes.size)
+							biomes.forEach {
+								identifier("minecraft:$it")
+								boolean(true)
+								byte(0x0A)
+								nbt(
+									NBTType.NBTCompound(
+										"has_precipitation" to NBTType.NBTByte(1),
+										"temperature" to NBTType.NBTFloat(0f),
+										"downfall" to NBTType.NBTFloat(0f),
+										"effects" to NBTType.NBTCompound(
+											"fog_color" to NBTType.NBTInt(8364543),
+											"water_color" to NBTType.NBTInt(8364543),
+											"water_fog_color" to NBTType.NBTInt(8364543),
+											"sky_color" to NBTType.NBTInt(8364543)
+										)
+									)
+								)
+							}
+						}
+
+						transmitPacket(0x03) {
+						}
+					}
+
 					else -> {
-						println("... ? $packetID : $packetLength")
+						println("configuration ... ? $packetID : $packetLength")
+						data.skip(packetLength)
+					}
+				}
+
+				State.PLAY -> when (packetID) {
+					else -> {
+						println("play ... ? $packetID : $packetLength")
 						data.skip(packetLength)
 					}
 				}

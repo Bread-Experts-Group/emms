@@ -24,14 +24,21 @@ import java.nio.channels.SocketChannel
 import javax.crypto.Cipher
 
 class SocketChannelData(private val channel: SocketChannel) : StandardDataEncryptable {
-	private val rx = ByteBuffer.allocateDirect(1024).limit(0)
-	private val tx = ByteBuffer.allocateDirect(1024).limit(0)
+	private val rx = ByteBuffer.allocateDirect(16384).limit(0)
+	private val tx = ByteBuffer.allocateDirect(16384).limit(0)
 
 	private var rxCipher: Cipher? = null
 	private var txCipher: Cipher? = null
 
-	private val rxCipherBuffer = ByteBuffer.allocate(1024)
-	private val txCipherBuffer = ByteBuffer.allocate(1024)
+	private val rxCipherBuffer = ByteBuffer.allocate(16384)
+	private val txCipherBuffer = ByteBuffer.allocate(16384)
+
+	private var consumed = 0L
+	override fun clearConsumed() {
+		consumed = 0L
+	}
+
+	override fun consumed(): Long = consumed
 
 	override fun receiveEncryption(cipher: Cipher?) {
 		rxCipher = cipher
@@ -64,61 +71,69 @@ class SocketChannelData(private val channel: SocketChannel) : StandardDataEncryp
 		return rx.flip()
 	}
 
-	override fun boolean(): Boolean = buffer(1).get() == 1.toByte()
+	override fun boolean(): Boolean = buffer(Byte.SIZE_BYTES).get() == 1.toByte().also { consumed += Byte.SIZE_BYTES }
 	override fun boolean(b: Boolean) {
 		if (!tx.hasRemaining()) flush()
 		tx.put(if (b) 1 else 0)
 	}
 
-	override fun byte(): Byte = buffer(1).get()
+	override fun byte(): Byte = buffer(Byte.SIZE_BYTES).get().also { consumed += Byte.SIZE_BYTES }
 	override fun byte(b: Byte) {
 		if (!tx.hasRemaining()) flush()
 		tx.put(b)
 	}
 
-	override fun short(): Short = buffer(2).getShort()
+	override fun short(): Short = buffer(Short.SIZE_BYTES).getShort().also { consumed += Short.SIZE_BYTES }
 	override fun short(s: Short) {
 		if (!tx.hasRemaining()) flush()
 		tx.putShort(s)
 	}
 
-	override fun int(): Int = buffer(4).getInt()
+	override fun int(): Int = buffer(Int.SIZE_BYTES).getInt().also { consumed += Int.SIZE_BYTES }
 	override fun int(i: Int) {
 		if (!tx.hasRemaining()) flush()
 		tx.putInt(i)
 	}
 
-	override fun long(): Long = buffer(8).getLong()
+	override fun long(): Long = buffer(Long.SIZE_BYTES).getLong().also { consumed += Long.SIZE_BYTES }
 	override fun long(l: Long) {
 		if (!tx.hasRemaining()) flush()
 		tx.putLong(l)
 	}
 
-	override fun float(): Float = buffer(4).getFloat()
+	override fun float(): Float = buffer(Float.SIZE_BYTES).getFloat().also { consumed += Float.SIZE_BYTES }
 	override fun float(f: Float) {
 		if (!tx.hasRemaining()) flush()
 		tx.putFloat(f)
 	}
 
-	override fun double(): Double = buffer(8).getDouble()
+	override fun double(): Double = buffer(Double.SIZE_BYTES).getDouble().also { consumed += Double.SIZE_BYTES }
 	override fun double(d: Double) {
 		if (!tx.hasRemaining()) flush()
 		tx.putDouble(d)
 	}
 
-	override fun bytes(a: ByteArray) {
+	override fun bytes(a: ByteArray, maximum: Int?) {
+		if (maximum != null && a.size > maximum) throw IOException("Byte array length exceeded maximum transmission size (${a.size} > ${maximum})")
 		if (!tx.hasRemaining()) flush()
 		tx.put(a)
 	}
 
-	override fun bytes(count: Int): ByteArray {
+	override fun bytes(count: Int, maximum: Int?): ByteArray {
+		if (maximum != null && count > maximum) throw IOException("Byte array length exceeded maximum receive size ($count > $maximum)")
 		val data = ByteArray(count)
 		buffer(count).get(data)
+		consumed += count
 		return data
 	}
 
 	override fun skip(count: Int) {
-		buffer(count).limit(0)
+		buffer(count).position(count)
+		consumed += count
+	}
+
+	override fun nbt(nbt: NBTType) {
+		TODO("Not yet implemented")
 	}
 
 	override fun flush() {
