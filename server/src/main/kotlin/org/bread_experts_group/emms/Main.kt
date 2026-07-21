@@ -23,6 +23,9 @@ import java.nio.channels.ServerSocketChannel
 import java.security.KeyPairGenerator
 import javax.crypto.Cipher
 
+const val COMPRESSION_LEVEL: UByte = 9u // In the future, it might be better to automatically determine these based on connection heuristics.
+const val COMPRESSION_THRESHOLD: Int = 1024
+
 fun main() {
 	val rsaGenerator = KeyPairGenerator.getInstance("RSA")
 	rsaGenerator.initialize(1024)

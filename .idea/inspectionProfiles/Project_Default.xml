@@ -16,6 +16,8 @@
       <option name="myAllowedSuppressions">
         <list>
           <option value="UnstableApiUsage" />
+          <option value="SimplifyBooleanWithConstants" />
+          <option value="KotlinConstantConditions" />
         </list>
       </option>
     </inspection_tool>

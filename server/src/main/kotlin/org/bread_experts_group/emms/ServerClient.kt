@@ -62,7 +62,7 @@ class ServerClient(
 	private val stagingSink = StagingDataSink()
 
 	private val compressionBuffer = ByteBuffer.allocate(16384)
-	private val deflater = Deflater(9, false)
+	private val deflater = Deflater(COMPRESSION_LEVEL.toInt(), false)
 	private val inflater = Inflater(false)
 	private val dataCompressed = CompressedDataSource(inflater, data)
 
@@ -221,10 +221,13 @@ class ServerClient(
 							}
 						)
 
-						transmitPacket(0x03) {
-							varInt(20000)
+						@Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
+						if (COMPRESSION_THRESHOLD < 0) {
+							transmitPacket(0x03) {
+								varInt(20000)
+							}
+							compressionThreshold = COMPRESSION_THRESHOLD
 						}
-						compressionThreshold = 20000
 
 						transmitPacket(0x02) {
 							uuid(loginState.uuid)
