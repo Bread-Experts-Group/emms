@@ -26,6 +26,7 @@ import javax.crypto.spec.SecretKeySpec
 import kotlin.io.path.Path
 import kotlin.io.path.name
 import kotlin.io.path.walk
+import kotlin.time.Instant
 
 class ServerClient(
 	private val serverInfo: ServerInformation,
@@ -373,6 +374,32 @@ class ServerClient(
 				}
 
 				State.PLAY -> when (packetID) {
+					0x07 -> {
+						val sessionId = data.uuid()
+						val pkExpiresAt = Instant.fromEpochMilliseconds(data.long())
+						val pk = data.bytes(data.varInt(), 512)
+						val keySignature = data.bytes(data.varInt(), 4096)
+						println("Session $sessionId, #${pk.size} pk [$pkExpiresAt], #${keySignature.size} ks")
+					}
+
+					0x1A -> {
+						val x = data.double()
+						val y = data.double()
+						val z = data.double()
+						val ground = data.boolean()
+						println("$x, $y, $z : ${if (ground) "grounded" else "freefall"}")
+					}
+
+					0x1B -> {
+						val x = data.double()
+						val y = data.double()
+						val z = data.double()
+						val yaw = data.float()
+						val pitch = data.float()
+						val ground = data.boolean()
+						println("$x, $y, $z : $yaw* $pitch* : ${if (ground) "grounded" else "freefall"}")
+					}
+
 					else -> skipPacket()
 				}
 
