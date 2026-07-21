@@ -60,7 +60,8 @@ class StagingDataSink : StandardDataSink {
 		TODO("Not yet implemented")
 	}
 
-	override fun nbt(nbt: NBTType) {
+	override fun nbt(nbt: NBTType, root: Boolean) {
+		if (root) buffer.put(nbt.typeID())
 		when (nbt) {
 			is NBTType.NBTCompound -> {
 				nbt.elements.forEach { (key, type) ->
@@ -68,7 +69,7 @@ class StagingDataSink : StandardDataSink {
 					val nameBytes = key.toByteArray(Charsets.UTF_8)
 					buffer.putShort(nameBytes.size.toShort())
 					buffer.put(nameBytes)
-					nbt(type)
+					nbt(type, false)
 				}
 				buffer.put(0x00)
 			}
@@ -77,7 +78,7 @@ class StagingDataSink : StandardDataSink {
 				buffer.put(nbt.elements.firstOrNull()?.typeID() ?: 0)
 				buffer.putInt(nbt.elements.size)
 				nbt.elements.forEach {
-					nbt(it)
+					nbt(it, false)
 				}
 			}
 

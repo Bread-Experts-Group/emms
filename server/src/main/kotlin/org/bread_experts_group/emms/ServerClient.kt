@@ -97,6 +97,22 @@ class ServerClient(
 		data.flush()
 	}
 
+	private fun disconnect(component: Component) = when (state) {
+		State.LOGIN -> transmitPacket(0x00) {
+			componentJSON(component)
+		}
+
+		State.CONFIGURATION -> transmitPacket(0x02) {
+			componentNBT(component)
+		}
+
+		State.PLAY -> transmitPacket(0x1D) {
+			componentNBT(component)
+		}
+
+		else -> {}
+	}
+
 	override fun run() {
 		while (true) {
 			val packetLength: Int
@@ -356,7 +372,6 @@ class ServerClient(
 							dimensionType.forEach {
 								identifier("minecraft:$it")
 								boolean(true)
-								byte(0x0A)
 								nbt(
 									NBTType.NBTCompound(
 										"has_skylight" to NBTType.NBTByte(1),
@@ -376,7 +391,8 @@ class ServerClient(
 										"has_raids" to NBTType.NBTByte(1),
 										"monster_spawn_light_level" to NBTType.NBTByte(0),
 										"monster_spawn_block_light_limit" to NBTType.NBTByte(0),
-									)
+									),
+									true
 								)
 							}
 						}
@@ -389,14 +405,14 @@ class ServerClient(
 							wolfVariant.forEach {
 								identifier("minecraft:$it")
 								boolean(true)
-								byte(0x0A)
 								nbt(
 									NBTType.NBTCompound(
 										"wild_texture" to NBTType.NBTString("minecraft:entity/wolf/wolf_ashen"),
 										"tame_texture" to NBTType.NBTString("minecraft:entity/wolf/wolf_ashen_tame"),
 										"angry_texture" to NBTType.NBTString("minecraft:entity/wolf/wolf_ashen_angry"),
 										"biomes" to NBTType.NBTList(emptyList<NBTType.NBTString>()),
-									)
+									),
+									true
 								)
 							}
 						}
@@ -409,13 +425,13 @@ class ServerClient(
 							paintingVariant.forEach {
 								identifier("minecraft:$it")
 								boolean(true)
-								byte(0x0A)
 								nbt(
 									NBTType.NBTCompound(
 										"asset_id" to NBTType.NBTString("minecraft:alban"),
 										"height" to NBTType.NBTInt(1),
 										"width" to NBTType.NBTInt(1)
-									)
+									),
+									true
 								)
 							}
 						}
@@ -428,14 +444,14 @@ class ServerClient(
 							damageTypes.forEach {
 								identifier("minecraft:$it")
 								boolean(true)
-								byte(0x0A)
 								nbt(
 									NBTType.NBTCompound(
 										"message_id" to NBTType.NBTString("inFire"),
 										"scaling" to NBTType.NBTString("when_caused_by_living_non_player"),
 										"exhaustion" to NBTType.NBTFloat(0.1f),
 										"effects" to NBTType.NBTString("burning")
-									)
+									),
+									true
 								)
 							}
 						}
@@ -448,7 +464,6 @@ class ServerClient(
 							biomes.forEach {
 								identifier("minecraft:$it")
 								boolean(true)
-								byte(0x0A)
 								nbt(
 									NBTType.NBTCompound(
 										"has_precipitation" to NBTType.NBTByte(1),
@@ -460,7 +475,8 @@ class ServerClient(
 											"water_fog_color" to NBTType.NBTInt(8364543),
 											"sky_color" to NBTType.NBTInt(8364543)
 										)
-									)
+									),
+									true
 								)
 							}
 						}

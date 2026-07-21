@@ -79,7 +79,10 @@ interface StandardDataSink {
 		}
 	}
 
-	fun nbt(nbt: NBTType)
+	fun nbt(nbt: NBTType, root: Boolean)
+
+	fun componentNBT(component: Component): Unit = nbt(component.nbt(), true)
+	fun componentJSON(component: Component): Unit = string(component.json(), 262144)
 
 	fun flush()
 }

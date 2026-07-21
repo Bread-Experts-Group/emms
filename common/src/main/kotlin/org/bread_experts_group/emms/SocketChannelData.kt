@@ -147,7 +147,7 @@ class SocketChannelData(private val channel: SocketChannel) : StandardData, Tran
 		consumed += count
 	}
 
-	override fun nbt(nbt: NBTType) {
+	override fun nbt(nbt: NBTType, root: Boolean) {
 		TODO("Not yet implemented")
 	}
 
