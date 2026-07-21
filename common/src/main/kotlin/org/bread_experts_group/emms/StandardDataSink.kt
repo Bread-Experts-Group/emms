@@ -19,6 +19,7 @@
 package org.bread_experts_group.emms
 
 import java.io.IOException
+import java.nio.ByteBuffer
 import kotlin.uuid.Uuid
 
 interface StandardDataSink {
@@ -61,6 +62,7 @@ interface StandardDataSink {
 	}
 
 	fun bytes(a: ByteArray, maximum: Int? = null)
+	fun bytes(b: ByteBuffer, maximum: Int? = null)
 
 	fun string(s: String, maximum: Int? = null) {
 		if (maximum != null && s.length > maximum) throw IOException("String length exceeded maximum transmission size (${s.length} > ${maximum})")

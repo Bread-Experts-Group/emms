@@ -22,8 +22,9 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.SocketChannel
 import javax.crypto.Cipher
+import kotlin.math.min
 
-class SocketChannelData(private val channel: SocketChannel) : StandardDataEncryptable {
+class SocketChannelData(private val channel: SocketChannel) : StandardData, TransportEncryptable {
 	private val rx = ByteBuffer.allocateDirect(16384).limit(0)
 	private val tx = ByteBuffer.allocateDirect(16384).limit(0)
 
@@ -125,6 +126,20 @@ class SocketChannelData(private val channel: SocketChannel) : StandardDataEncryp
 		buffer(count).get(data)
 		consumed += count
 		return data
+	}
+
+	override fun bytes(b: ByteBuffer, maximum: Int?) {
+		if (maximum != null && b.remaining() > maximum) throw IOException("Byte buffer remainder exceeded maximum transmission size (${b.remaining()} > ${maximum})")
+		if (!tx.hasRemaining()) flush()
+		tx.put(b)
+	}
+
+	override fun transferTo(buffer: ByteBuffer) {
+		buffer(1)
+		val savedRxLimit = rx.limit()
+		rx.limit(rx.position() + min(buffer.remaining(), rx.remaining()))
+		buffer.put(rx)
+		rx.limit(savedRxLimit)
 	}
 
 	override fun skip(count: Int) {

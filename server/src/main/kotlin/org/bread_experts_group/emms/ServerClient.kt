@@ -19,7 +19,10 @@
 package org.bread_experts_group.emms
 
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.security.SecureRandom
+import java.util.zip.Deflater
+import java.util.zip.Inflater
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -30,7 +33,7 @@ import kotlin.time.Instant
 
 class ServerClient(
 	private val serverInfo: ServerInformation,
-	private val data: StandardDataEncryptable
+	private val data: StandardData
 ) : Runnable {
 	enum class State {
 		HANDSHAKING,
@@ -42,6 +45,7 @@ class ServerClient(
 	}
 
 	private var state = State.HANDSHAKING
+	private var compressionThreshold: Int? = null
 
 	private var internalLoginState: LogInState? = null
 		set(value) {
@@ -56,18 +60,64 @@ class ServerClient(
 	private val secureRandom = SecureRandom()
 
 	private val stagingSink = StagingDataSink()
+
+	private val compressionBuffer = ByteBuffer.allocate(16384)
+	private val deflater = Deflater(9, false)
+	private val inflater = Inflater(false)
+	private val dataCompressed = CompressedDataSource(inflater, data)
+
 	private fun transmitPacket(id: Int, consumer: StandardDataSink.() -> Unit) {
 		stagingSink.varInt(id)
 		consumer(stagingSink)
-		data.varInt(stagingSink.size())
-		data.bytes(stagingSink.bytes())
+
+		val compressionThreshold = compressionThreshold
+		if (compressionThreshold != null) {
+			val payload = stagingSink.bytes()
+			if (payload.size > compressionThreshold) {
+				stagingSink.varInt(payload.size)
+
+				deflater.reset()
+				deflater.setInput(payload)
+				deflater.finish()
+				deflater.deflate(compressionBuffer.clear())
+				if (!deflater.finished()) TODO("grow compress")
+
+				data.varInt(stagingSink.size() + compressionBuffer.position())
+				data.bytes(stagingSink.bytes())
+				data.bytes(compressionBuffer.flip())
+			} else {
+				TODO("!")
+			}
+		} else {
+			data.varInt(stagingSink.size())
+			data.bytes(stagingSink.bytes())
+		}
 		data.flush()
 	}
 
 	override fun run() {
 		while (true) {
-			val packetLength = data.varInt()
-			data.clearConsumed()
+			val packetLength: Int
+			val data: StandardDataSource = if (compressionThreshold != null) {
+				val compressedPacketLength = data.varInt()
+				data.clearConsumed()
+				val dataLength = data.varInt()
+				if (dataLength == 0) {
+					packetLength = compressedPacketLength - data.consumed().toInt()
+					data.clearConsumed()
+					data
+				} else {
+					packetLength = dataLength
+					dataCompressed.limit(compressedPacketLength - data.consumed().toInt())
+					dataCompressed.clearConsumed()
+					dataCompressed
+				}
+			} else {
+				packetLength = data.varInt()
+				data.clearConsumed()
+				data
+			}
+
 			val packetID = data.varInt()
 
 			fun skipPacket() {
@@ -144,6 +194,7 @@ class ServerClient(
 					}
 
 					0x01 -> {
+						data as TransportEncryptable
 						val encSharedSecret = data.bytes(data.varInt())
 						val encVerifyToken = data.bytes(data.varInt())
 
@@ -167,6 +218,11 @@ class ServerClient(
 								it.init(Cipher.ENCRYPT_MODE, sharedSecretKey, sharedSecretIV)
 							}
 						)
+
+						transmitPacket(0x03) {
+							varInt(0)
+						}
+						compressionThreshold = 0
 
 						transmitPacket(0x02) {
 							uuid(loginState.uuid)
@@ -240,7 +296,7 @@ class ServerClient(
 							boolean(false)
 							boolean(false) // DEATH LOCATION
 							varInt(20)
-							boolean(false)
+							boolean(true)
 						}
 
 						transmitPacket(0x40) {
@@ -421,6 +477,16 @@ class ServerClient(
 						val pitch = data.float()
 						val ground = data.boolean()
 						println("$x, $y, $z : $yaw* $pitch* : ${if (ground) "grounded" else "freefall"}")
+					}
+
+					0x06 -> {
+						val message = data.string(256)
+						val timestamp = Instant.fromEpochMilliseconds(data.long())
+						val salt = data.long()
+						val signature = if (data.boolean()) data.bytes(256) else null
+						val messageCount = data.varInt()
+						val acknowledge = data.bytes(3)
+						println("MSG: $message @ $timestamp $salt $signature $messageCount $acknowledge")
 					}
 
 					else -> skipPacket()

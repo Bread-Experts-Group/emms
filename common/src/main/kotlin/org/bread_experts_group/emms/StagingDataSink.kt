@@ -56,6 +56,10 @@ class StagingDataSink : StandardDataSink {
 		buffer.put(a)
 	}
 
+	override fun bytes(b: ByteBuffer, maximum: Int?) {
+		TODO("Not yet implemented")
+	}
+
 	override fun nbt(nbt: NBTType) {
 		when (nbt) {
 			is NBTType.NBTCompound -> {

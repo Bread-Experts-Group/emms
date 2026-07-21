@@ -20,7 +20,7 @@ package org.bread_experts_group.emms
 
 import javax.crypto.Cipher
 
-interface StandardDataEncryptable : StandardData {
+interface TransportEncryptable {
 	fun receiveEncryption(cipher: Cipher?)
 	fun transmitEncryption(cipher: Cipher?)
 }

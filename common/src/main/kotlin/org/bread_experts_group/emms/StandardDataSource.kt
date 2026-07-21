@@ -39,6 +39,7 @@ interface StandardDataSource {
 	fun double(): Double
 
 	fun bytes(count: Int, maximum: Int? = null): ByteArray
+	fun transferTo(buffer: ByteBuffer)
 
 	fun varInt(): Int {
 		var n = 0
