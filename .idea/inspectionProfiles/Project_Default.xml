@@ -18,6 +18,7 @@
           <option value="UnstableApiUsage" />
           <option value="SimplifyBooleanWithConstants" />
           <option value="KotlinConstantConditions" />
+          <option value="RedundantNullableReturnType" />
         </list>
       </option>
     </inspection_tool>

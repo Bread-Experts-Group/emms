@@ -60,13 +60,13 @@ class SocketChannelData(private val channel: SocketChannel) : StandardData, Tran
 		if (rxCipher != null) {
 			while (rx.position() < count) {
 				val read = channel.read(rxCipherBuffer.clear())
-				if (read == -1) throw IOException("Socket data stream ended.")
+				if (read == -1) throw InterruptedException("Socket stream ended.")
 				rxCipher.update(rxCipherBuffer.flip(), rx)
 			}
 		} else {
 			while (rx.position() < count) {
 				val read = channel.read(rx)
-				if (read == -1) throw IOException("Socket data stream ended.")
+				if (read == -1) throw InterruptedException("Socket stream ended.")
 			}
 		}
 		return rx.flip()
