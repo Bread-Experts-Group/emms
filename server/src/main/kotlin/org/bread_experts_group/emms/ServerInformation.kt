@@ -18,10 +18,12 @@
 
 package org.bread_experts_group.emms
 
+import java.net.http.HttpClient
 import java.security.PublicKey
 import javax.crypto.Cipher
 
 data class ServerInformation(
 	val publicKey: PublicKey,
-	val decryptCipher: Cipher
+	val decryptCipher: Cipher,
+	val httpClient: HttpClient
 )

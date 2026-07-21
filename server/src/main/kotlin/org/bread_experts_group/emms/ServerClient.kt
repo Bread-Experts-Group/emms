@@ -207,6 +207,21 @@ class ServerClient(
 							"Client did not provide the correct verify token during encryption setup."
 						)
 
+//						val sha = MessageDigest.getInstance("SHA-1")
+//						sha.update(byteArrayOf()) // server id
+//						sha.update(sharedSecret)
+//						sha.update(serverInfo.publicKey.encoded)
+//						val severID = BigInteger(sha.digest()).toString(16)
+
+						// TODO: &ip=ip IF PREVENT_PROXY_CONNECTIONS
+//						val response = serverInfo.httpClient.send(
+//							HttpRequest.newBuilder(
+//								URI("https://sessionserver.mojang.com/session/minecraft/hasJoined?username=${loginState.username}&serverId=$severID")
+//							).GET().build(),
+//							HttpResponse.BodyHandlers.ofString()
+//						) // TODO: JSON
+//						println(response.body())
+
 						val sharedSecretKey = SecretKeySpec(sharedSecret, "AES")
 						val sharedSecretIV = IvParameterSpec(sharedSecret)
 
@@ -224,7 +239,7 @@ class ServerClient(
 						@Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
 						if (COMPRESSION_THRESHOLD < 0) {
 							transmitPacket(0x03) {
-								varInt(20000)
+								varInt(COMPRESSION_THRESHOLD)
 							}
 							compressionThreshold = COMPRESSION_THRESHOLD
 						}

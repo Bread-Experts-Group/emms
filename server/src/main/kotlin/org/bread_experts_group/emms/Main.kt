@@ -19,12 +19,17 @@
 package org.bread_experts_group.emms
 
 import java.net.InetSocketAddress
+import java.net.http.HttpClient
 import java.nio.channels.ServerSocketChannel
 import java.security.KeyPairGenerator
 import javax.crypto.Cipher
 
 const val COMPRESSION_LEVEL: UByte = 9u // In the future, it might be better to automatically determine these based on connection heuristics.
 const val COMPRESSION_THRESHOLD: Int = 1024
+
+const val PREVENT_PROXY_CONNECTIONS: Boolean = false
+
+val HTTP_CLIENT: HttpClient = HttpClient.newHttpClient()
 
 fun main() {
 	val rsaGenerator = KeyPairGenerator.getInstance("RSA")
@@ -34,7 +39,7 @@ fun main() {
 	val serverCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
 	serverCipher.init(Cipher.DECRYPT_MODE, keyPair.private)
 
-	val serverInfo = ServerInformation(keyPair.public, serverCipher)
+	val serverInfo = ServerInformation(keyPair.public, serverCipher, HTTP_CLIENT)
 
 	val server = ServerSocketChannel.open()
 //	server.setOption(StandardSocketOptions.TCP_NODELAY, true)
