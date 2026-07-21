@@ -44,11 +44,11 @@ class StagingDataSink : StandardDataSink {
 	}
 
 	override fun float(f: Float) {
-		TODO("Not yet implemented")
+		buffer.putFloat(f)
 	}
 
 	override fun double(d: Double) {
-		TODO("Not yet implemented")
+		buffer.putDouble(d)
 	}
 
 	override fun bytes(a: ByteArray, maximum: Int?) {

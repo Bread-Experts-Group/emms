@@ -242,6 +242,29 @@ class ServerClient(
 							varInt(20)
 							boolean(false)
 						}
+
+						transmitPacket(0x40) {
+							double(0.0)
+							double(0.0)
+							double(0.0)
+							float(0f)
+							float(0f)
+							byte(0)
+							varInt(0)
+						}
+
+						transmitPacket(0x3E) {
+							byte(0x01)
+							varInt(1)
+							uuid(loginState.uuid)
+							string(loginState.username, 16)
+							varInt(0)
+						}
+
+						transmitPacket(0x22) {
+							unsignedByte(13u)
+							float(0f)
+						}
 					}
 
 					0x07 -> {
