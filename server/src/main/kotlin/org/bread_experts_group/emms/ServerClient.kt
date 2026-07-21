@@ -68,11 +68,16 @@ class ServerClient(
 			val packetLength = data.varInt()
 			data.clearConsumed()
 			val packetID = data.varInt()
-			val packetIDHex = packetID.toHexString()
+
+			fun skipPacket() {
+				data.skip((packetLength - data.consumed()).toInt())
+				println("$state: 0x${packetID.toHexString(HexFormat.UpperCase)} ($packetLength)")
+			}
+
 			when (state) {
 				State.HANDSHAKING -> {
 					if (packetID != 0x00) {
-						data.skip(packetLength)
+						skipPacket()
 						continue
 					}
 
@@ -115,7 +120,7 @@ class ServerClient(
 						long(data.long())
 					}
 
-					else -> data.skip(packetLength)
+					else -> skipPacket()
 				}
 
 				State.LOGIN -> when (packetID) {
@@ -174,10 +179,7 @@ class ServerClient(
 						state = State.CONFIGURATION
 					}
 
-					else -> {
-						println("login ... ? $packetID : $packetLength")
-						data.skip(packetLength)
-					}
+					else -> skipPacket()
 				}
 
 				State.CONFIGURATION -> when (packetID) {
@@ -248,7 +250,7 @@ class ServerClient(
 
 						transmitPacket(0x07) {
 							identifier("minecraft:dimension_type")
-							val dimensionType = Path("server/src/main/resources/data/minecraft/wolf_variant").walk()
+							val dimensionType = Path("server/src/main/resources/data/minecraft/dimension_type").walk()
 								.map { it.name.removeSuffix(".json") }.toList()
 							varInt(dimensionType.size)
 							dimensionType.forEach {
@@ -367,17 +369,11 @@ class ServerClient(
 						}
 					}
 
-					else -> {
-						println("configuration ... ? $packetID : $packetLength")
-						data.skip(packetLength)
-					}
+					else -> skipPacket()
 				}
 
 				State.PLAY -> when (packetID) {
-					else -> {
-						println("play ... ? x$packetIDHex : $packetLength")
-						data.skip(packetLength)
-					}
+					else -> skipPacket()
 				}
 
 				else -> TODO("$state")
