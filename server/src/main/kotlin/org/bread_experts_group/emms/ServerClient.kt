@@ -86,7 +86,9 @@ class ServerClient(
 				data.bytes(stagingSink.bytes())
 				data.bytes(compressionBuffer.flip())
 			} else {
-				TODO("!")
+				data.varInt(1 + payload.size)
+				data.byte(0)
+				data.bytes(payload)
 			}
 		} else {
 			data.varInt(stagingSink.size())
@@ -220,9 +222,9 @@ class ServerClient(
 						)
 
 						transmitPacket(0x03) {
-							varInt(0)
+							varInt(20000)
 						}
-						compressionThreshold = 0
+						compressionThreshold = 20000
 
 						transmitPacket(0x02) {
 							uuid(loginState.uuid)
