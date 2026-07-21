@@ -102,15 +102,15 @@ class ServerClient(
 
 	private fun disconnect(component: Component) {
 		when (state) {
-			State.LOGIN -> transmitPacket(0x00) {
+			State.LOGIN -> transmitPacket(CLIENT_LOGIN_DISCONNECT) {
 				componentJSON(component)
 			}
 
-			State.CONFIGURATION -> transmitPacket(0x02) {
+			State.CONFIGURATION -> transmitPacket(CLIENT_CONFIGURATION_DISCONNECT) {
 				componentNBT(component)
 			}
 
-			State.PLAY -> transmitPacket(0x1D) {
+			State.PLAY -> transmitPacket(CLIENT_PLAY_DISCONNECT) {
 				componentNBT(component)
 			}
 
@@ -129,11 +129,11 @@ class ServerClient(
 			try {
 				Thread.sleep(5_000)
 				when (state) {
-					State.CONFIGURATION -> transmitPacket(0x05) {
+					State.CONFIGURATION -> transmitPacket(CLIENT_CONFIGURATION_PING_REQUEST) {
 						int(lastPing.incrementAndGet())
 					}
 
-					State.PLAY -> transmitPacket(0x35) {
+					State.PLAY -> transmitPacket(CLIENT_PLAY_PING_REQUEST) {
 						int(lastPing.incrementAndGet())
 					}
 
@@ -187,7 +187,7 @@ class ServerClient(
 
 				when (state) {
 					State.HANDSHAKING -> {
-						if (packetID != 0x00) {
+						if (packetID != SERVER_HANDSHAKE_INTENTION) {
 							skipPacket()
 							continue
 						}
@@ -202,7 +202,7 @@ class ServerClient(
 					}
 
 					State.STATUS -> when (packetID) {
-						0x00 -> transmitPacket(0x00) {
+						SERVER_STATUS_REQUEST -> transmitPacket(CLIENT_STATUS_RESPONSE) {
 							string(
 								"{\n" +
 										"    \"version\": {\n" +
@@ -219,15 +219,13 @@ class ServerClient(
 										"            }\n" +
 										"        ]\n" +
 										"    },\n" +
-										"    \"description\": {\n" +
-										"        \"text\": \"Hello, world!\"\n" +
-										"    },\n" +
+										"    \"description\": ${MOTD.json()},\n" +
 										"    \"enforcesSecureChat\": false\n" +
 										"}", 32767
 							)
 						}
 
-						0x01 -> transmitPacket(0x01) {
+						SERVER_STATUS_PING_REQUEST -> transmitPacket(CLIENT_STATUS_PING_RESPONSE) {
 							long(data.long())
 						}
 
@@ -235,10 +233,10 @@ class ServerClient(
 					}
 
 					State.LOGIN -> when (packetID) {
-						0x00 -> {
+						SERVER_LOGIN_START -> {
 							val login = LogInState(data.string(16), data.uuid())
 							internalLoginState = login
-							if (ENCRYPTION) transmitPacket(0x01) {
+							if (ENCRYPTION) transmitPacket(CLIENT_LOGIN_ENCRYPTION_REQUEST) {
 								string("", 20)
 
 								val pkBytes = serverInfo.publicKey.encoded
@@ -253,7 +251,7 @@ class ServerClient(
 							}
 						}
 
-						0x01 -> {
+						SERVER_LOGIN_ENCRYPTION_RESPONSE -> {
 							data as TransportEncryptable
 							val encSharedSecret = data.bytes(data.varInt())
 							val encVerifyToken = data.bytes(data.varInt())
@@ -298,13 +296,13 @@ class ServerClient(
 
 							@Suppress("SimplifyBooleanWithConstants", "KotlinConstantConditions")
 							if (COMPRESSION_THRESHOLD < 0) {
-								transmitPacket(0x03) {
+								transmitPacket(CLIENT_LOGIN_COMPRESSION_THRESHOLD) {
 									varInt(COMPRESSION_THRESHOLD)
 								}
 								compressionThreshold = COMPRESSION_THRESHOLD
 							}
 
-							transmitPacket(0x02) {
+							transmitPacket(CLIENT_LOGIN_SUCCESS) {
 								uuid(loginState.uuid)
 								string(loginState.username, 16)
 								varInt(0)
@@ -312,7 +310,7 @@ class ServerClient(
 							}
 						}
 
-						0x03 -> {
+						SERVER_LOGIN_ACKNOWLEDGE -> {
 							state = State.CONFIGURATION
 							mailboxThread = Thread.ofVirtual()
 								.name(Thread.currentThread().name + " mailbox thread")
@@ -326,7 +324,7 @@ class ServerClient(
 					}
 
 					State.CONFIGURATION -> when (packetID) {
-						0x00 -> {
+						SERVER_CONFIGURATION_CLIENT_INFO -> {
 							loginState.locale = data.string(16)
 							loginState.viewDistance = data.byte().toInt() and 0xFF
 							loginState.chatMode = LogInState.ChatMode.entries[data.varInt()]
@@ -346,7 +344,7 @@ class ServerClient(
 							loginState.textFiltering = data.boolean()
 							loginState.serverListingOnStatus = data.boolean()
 
-							transmitPacket(0x0E) {
+							transmitPacket(CLIENT_CONFIGURATION_KNOWN_PACKS) {
 								varInt(1)
 								string("minecraft")
 								string("core")
@@ -354,15 +352,15 @@ class ServerClient(
 							}
 						}
 
-						0x02 -> {
+						SERVER_CONFIGURATION_PLUGIN_MESSAGE -> {
 							val channel = data.identifier()
 							val pluginData = data.bytes(packetLength - data.consumed().toInt(), 32767)
 							println("$channel: ${pluginData.toHexString()}")
 						}
 
-						0x03 -> {
+						SERVER_CONFIGURATION_FINISH_ACKNOWLEDGE -> {
 							state = State.PLAY
-							transmitPacket(0x2B) {
+							transmitPacket(CLIENT_PLAY_LOGIN) {
 								int(0)
 								boolean(false)
 								varInt(1)
@@ -385,7 +383,7 @@ class ServerClient(
 								boolean(true)
 							}
 
-							transmitPacket(0x40) {
+							transmitPacket(CLIENT_PLAY_MOVE_PLAYER_AND_ROTATE) {
 								double(0.0)
 								double(0.0)
 								double(0.0)
@@ -395,7 +393,7 @@ class ServerClient(
 								varInt(0)
 							}
 
-							transmitPacket(0x3E) {
+							transmitPacket(CLIENT_PLAY_USER_LIST_UPDATE) {
 								byte((0x01 or 0x08 or 0x10).toByte())
 								varInt(1)
 								uuid(loginState.uuid)
@@ -408,18 +406,18 @@ class ServerClient(
 								varInt(-1)
 							}
 
-							transmitPacket(0x22) {
+							transmitPacket(CLIENT_PLAY_GAME_EVENT) {
 								unsignedByte(13u)
 								float(0f)
 							}
 						}
 
-						0x07 -> {
+						SERVER_CONFIGURATION_KNOWN_PACKS -> {
 							repeat(data.varInt().also { println("$it packs") }) {
 								println("${data.string()} ${data.string()} ${data.string()}")
 							}
 
-							transmitPacket(0x07) {
+							transmitPacket(CLIENT_CONFIGURATION_REGISTRY_DATA) {
 								identifier("minecraft:dimension_type")
 								val dimensionType = Path("server/src/main/resources/data/minecraft/dimension_type").walk()
 									.map { it.name.removeSuffix(".json") }.toList()
@@ -452,7 +450,7 @@ class ServerClient(
 								}
 							}
 
-							transmitPacket(0x07) {
+							transmitPacket(CLIENT_CONFIGURATION_REGISTRY_DATA) {
 								identifier("minecraft:wolf_variant")
 								val wolfVariant = Path("server/src/main/resources/data/minecraft/wolf_variant").walk()
 									.map { it.name.removeSuffix(".json") }.toList()
@@ -472,7 +470,7 @@ class ServerClient(
 								}
 							}
 
-							transmitPacket(0x07) {
+							transmitPacket(CLIENT_CONFIGURATION_REGISTRY_DATA) {
 								identifier("minecraft:painting_variant")
 								val paintingVariant = Path("server/src/main/resources/data/minecraft/painting_variant").walk()
 									.map { it.name.removeSuffix(".json") }.toList()
@@ -491,7 +489,7 @@ class ServerClient(
 								}
 							}
 
-							transmitPacket(0x07) {
+							transmitPacket(CLIENT_CONFIGURATION_REGISTRY_DATA) {
 								identifier("minecraft:damage_type")
 								val damageTypes = Path("server/src/main/resources/data/minecraft/damage_type").walk()
 									.map { it.name.removeSuffix(".json") }.toList()
@@ -511,7 +509,7 @@ class ServerClient(
 								}
 							}
 
-							transmitPacket(0x07) {
+							transmitPacket(CLIENT_CONFIGURATION_REGISTRY_DATA) {
 								identifier("minecraft:worldgen/biome")
 								val biomes = Path("server/src/main/resources/data/minecraft/worldgen/biome").walk()
 									.map { it.name.removeSuffix(".json") }.toList()
@@ -536,11 +534,11 @@ class ServerClient(
 								}
 							}
 
-							transmitPacket(0x03) {
+							transmitPacket(CLIENT_CONFIGURATION_FINISH) {
 							}
 						}
 
-						0x05 -> {
+						SERVER_CONFIGURATION_PING_RESPONSE -> {
 							val expected = lastPing.get() + 1867
 							val actual = data.int()
 							if (expected != actual) disconnect(
@@ -552,7 +550,7 @@ class ServerClient(
 					}
 
 					State.PLAY -> when (packetID) {
-						0x07 -> {
+						SERVER_PLAY_PLAYER_SESSION -> {
 							val sessionId = data.uuid()
 							val pkExpiresAt = Instant.fromEpochMilliseconds(data.long())
 							val pk = data.bytes(data.varInt(), 512)
@@ -560,7 +558,7 @@ class ServerClient(
 							println("Session $sessionId, #${pk.size} pk [$pkExpiresAt], #${keySignature.size} ks")
 						}
 
-						0x1A -> {
+						SERVER_PLAY_PLAYER_MOVE -> {
 							val x = data.double()
 							val y = data.double()
 							val z = data.double()
@@ -568,7 +566,7 @@ class ServerClient(
 							println("$x, $y, $z : ${if (ground) "grounded" else "freefall"}")
 						}
 
-						0x1B -> {
+						SERVER_PLAY_PLAYER_MOVE_AND_ROTATE -> {
 							val x = data.double()
 							val y = data.double()
 							val z = data.double()
@@ -578,7 +576,7 @@ class ServerClient(
 							println("$x, $y, $z : $yaw* $pitch* : ${if (ground) "grounded" else "freefall"}")
 						}
 
-						0x06 -> {
+						SERVER_PLAY_CHAT_MESSAGE -> {
 							val message = data.string(256)
 							val timestamp = Instant.fromEpochMilliseconds(data.long())
 							val salt = data.long()
@@ -588,14 +586,14 @@ class ServerClient(
 							println("MSG: $message @ $timestamp $salt $signature $messageCount $acknowledge")
 						}
 
-						0x21 -> {
+						SERVER_PLAY_PING_REQUEST -> {
 							val payload = data.long()
-							transmitPacket(0x36) {
+							transmitPacket(CLIENT_PLAY_PING_RESPONSE) {
 								long(payload)
 							}
 						}
 
-						0x27 -> {
+						SERVER_PLAY_PING_RESPONSE -> {
 							val expected = lastPing.get()
 							val actual = data.int()
 							println("$expected $actual")
