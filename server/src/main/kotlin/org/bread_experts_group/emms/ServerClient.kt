@@ -68,6 +68,7 @@ class ServerClient(
 			val packetLength = data.varInt()
 			data.clearConsumed()
 			val packetID = data.varInt()
+			val packetIDHex = packetID.toHexString()
 			when (state) {
 				State.HANDSHAKING -> {
 					if (packetID != 0x00) {
@@ -374,7 +375,7 @@ class ServerClient(
 
 				State.PLAY -> when (packetID) {
 					else -> {
-						println("play ... ? $packetID : $packetLength")
+						println("play ... ? x$packetIDHex : $packetLength")
 						data.skip(packetLength)
 					}
 				}
