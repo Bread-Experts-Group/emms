@@ -31,22 +31,21 @@ import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.Cipher
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
-import kotlin.time.toDuration
 
 
 const val COMPRESSION_LEVEL: UByte = 9u // In the future, it might be better to automatically determine these based on connection heuristics.
 const val COMPRESSION_THRESHOLD: Int = 1024
 
-const val NAGLE_ALGORITHM: Boolean = false
+const val DISABLE_NAGLE_ALGORITHM: Boolean = true
 const val PORT: UShort = 25565u
-val QUERY_PORT: UShort? = 25565u
+val QUERY_PORT: UShort? = null // 25565u
 
 const val PREVENT_PROXY_CONNECTIONS: Boolean = false
 const val ENCRYPTION: Boolean = true
-const val ONLINE_MODE: Boolean = true
+const val ONLINE_MODE: Boolean = false
 
 const val SERVER_LIST_PING_PORT: UShort = 4445u
-val SERVER_LIST_PING_BROADCAST_INTERNAL: Duration? = 1.5.toDuration(DurationUnit.SECONDS)
+val SERVER_LIST_PING_BROADCAST_INTERNAL: Duration? = null // 1.5.toDuration(DurationUnit.SECONDS)
 val SERVER_LIST_PING_INTERFACE: String? = null
 
 val MOTD: Component = Component.Literal("A Minecraft Server")
@@ -186,7 +185,7 @@ fun main() {
 
 	while (true) {
 		val client = server.accept()
-		if (NAGLE_ALGORITHM) client.setOption(StandardSocketOptions.TCP_NODELAY, true)
+		if (DISABLE_NAGLE_ALGORITHM) client.setOption(StandardSocketOptions.TCP_NODELAY, true)
 		Thread.ofVirtual()
 			.name("${client.remoteAddress} -> ${client.localAddress} client")
 			.start(ServerClient(serverInfo, SocketChannelData(client)))
